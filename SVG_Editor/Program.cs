@@ -1,6 +1,4 @@
-using System;
-using System.Windows.Forms;
-
+using SVG_Editor;
 
 namespace Svg_Editor
 {

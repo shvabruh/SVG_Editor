@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace SVG_Editor.Enums
 {
-    enum HandleKind
+    public enum HandleKind
     {
         None,
         N,

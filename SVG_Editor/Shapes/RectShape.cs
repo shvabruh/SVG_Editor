@@ -8,5 +8,32 @@ namespace SVG_Editor.Shapes
 {
     public sealed class RectShape : IShape
     {
+        public RectangleF Bounds { get; set; }
+        public Color Fill { get; set; } = Color.FromArgb(24, Color.DeepSkyBlue);
+        public Color Stroke { get; set; } = Color.DodgerBlue;
+        public float StrokeWidth { get; set; } = 2f;
+
+        public RectShape(RectangleF b) { Bounds = b; }
+
+        public void Draw(Graphics g)
+        {
+            using var br = new SolidBrush(Fill);
+            using var pen = new Pen(Stroke, StrokeWidth);
+            g.FillRectangle(br, Bounds);
+            g.DrawRectangle(pen, Bounds.X, Bounds.Y, Bounds.Width, Bounds.Height);
+        }
+
+        public bool HitTest(PointF p) => Bounds.Contains(p);
+
+        public void MoveBy(PointF d) =>
+            Bounds = new RectangleF(Bounds.X + d.X, Bounds.Y + d.Y, Bounds.Width, Bounds.Height);
+
+        public IShape Clone() =>
+            new RectShape(Bounds)
+            {
+                Fill = this.Fill,
+                Stroke = this.Stroke,
+                StrokeWidth = this.StrokeWidth
+            };
     }
 }
