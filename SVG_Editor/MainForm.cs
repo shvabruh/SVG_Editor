@@ -271,9 +271,24 @@ namespace SVG_Editor
                 }
                 else
                 {
-                    // перемещение (одной фигуры или группы)
+                    // перемещение — либо всех фигур в multiSelection, либо одной _selection
                     var delta = new PointF(pCanvas.X - _dragStartCanvas.X, pCanvas.Y - _dragStartCanvas.Y);
-                    _selection.MoveBy(delta);
+
+                    // если у нас есть мультивыделение, убедимся, что текущая фигура тоже там
+                    if (_multiSelection.Count > 0)
+                    {
+                        if (!_multiSelection.Contains(_selection))
+                            _multiSelection.Add(_selection);
+
+                        foreach (var shape in _multiSelection)
+                            shape.MoveBy(delta);
+                    }
+                    else
+                    {
+                        // обычное одиночное перемещение
+                        _selection.MoveBy(delta);
+                    }
+
                     _netDelta = new PointF(_netDelta.X + delta.X, _netDelta.Y + delta.Y);
                     _dragStartCanvas = pCanvas;
                     Invalidate();
