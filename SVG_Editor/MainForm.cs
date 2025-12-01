@@ -42,46 +42,63 @@ namespace SVG_Editor
         private Color _styleStroke;
         private float _styleStrokeWidth;
 
+        // Панель свойств
+        private Panel _propsPanel = null!;
+        private TextBox _tbX = null!;
+        private TextBox _tbY = null!;
+        private TextBox _tbW = null!;
+        private TextBox _tbH = null!;
+        private Button _btnFill = null!;
+        private Button _btnStroke = null!;
+        private NumericUpDown _numStrokeWidth = null!;
+        private readonly ColorDialog _colorDialog = new();
+        private bool _updatingPropsFromSelection;
+
         public MainForm()
         {
-            Text = "SVG Editor";
+            Text = "SVG-редактор";
             DoubleBuffered = true;
             ClientSize = new Size(1000, 700);
             KeyPreview = true;
 
             // ===== Меню =====
-            var miOpen = new ToolStripMenuItem("Open", null, (_, __) => DoOpen())
+            var miNew = new ToolStripMenuItem("Новый холст", null, (_, __) => DoNewCanvas())
             { ShortcutKeys = Keys.Control | Keys.O };
-            var miSave = new ToolStripMenuItem("Save", null, (_, __) => DoSave())
+            var miOpen = new ToolStripMenuItem("Открыть", null, (_, __) => DoOpen())
+            { ShortcutKeys = Keys.Control | Keys.O };
+            var miSave = new ToolStripMenuItem("Сохранить", null, (_, __) => DoSave())
             { ShortcutKeys = Keys.Control | Keys.S };
-            var miUndo = new ToolStripMenuItem("Undo", null, (_, __) => { _history.Undo(); Invalidate(); })
+            var miUndo = new ToolStripMenuItem("Отменить", null, (_, __) => { _history.Undo(); Invalidate(); })
             { ShortcutKeys = Keys.Control | Keys.Z };
-            var miRedo = new ToolStripMenuItem("Redo", null, (_, __) => { _history.Redo(); Invalidate(); })
+            var miRedo = new ToolStripMenuItem("Повторить", null, (_, __) => { _history.Redo(); Invalidate(); })
             { ShortcutKeys = Keys.Control | Keys.Y };
-            var miDel = new ToolStripMenuItem("Delete", null, (_, __) => DeleteSelection())
+            var miDel = new ToolStripMenuItem("Удалить", null, (_, __) => DeleteSelection())
             { ShortcutKeys = Keys.Delete };
 
             var menu = new MenuStrip();
-            var file = new ToolStripMenuItem("File");
+            var file = new ToolStripMenuItem("Файл");
             file.DropDownItems.AddRange(new[] { miOpen, miSave });
-            var edit = new ToolStripMenuItem("Edit");
+            file.DropDownItems.Insert(0, miNew);
+            var edit = new ToolStripMenuItem("Правка");
             edit.DropDownItems.AddRange(new[] { miUndo, miRedo, miDel });
             menu.Items.AddRange(new[] { file, edit });
             MainMenuStrip = menu;
             Controls.Add(menu);
 
             // ===== ToolStrip =====
-            var bOpen = new ToolStripButton("Open");
-            var bSave = new ToolStripButton("Save");
-            var bUndo = new ToolStripButton("Undo");
-            var bRedo = new ToolStripButton("Redo");
-            var bDel = new ToolStripButton("Delete");
+            var bNew = new ToolStripButton("Новый холст");
+            var bOpen = new ToolStripButton("Открыть");
+            var bSave = new ToolStripButton("Сохранить");
+            var bUndo = new ToolStripButton("Отменить");
+            var bRedo = new ToolStripButton("Повторить");
+            var bDel = new ToolStripButton("Удалить");
 
-            var bSelect = new ToolStripButton("Select") { CheckOnClick = true, Checked = true };
-            var bRect = new ToolStripButton("Rect") { CheckOnClick = true };
-            var bEll = new ToolStripButton("Ellipse") { CheckOnClick = true };
-            var bLine = new ToolStripButton("Line") { CheckOnClick = true };
+            var bSelect = new ToolStripButton("Выбор") { CheckOnClick = true, Checked = true };
+            var bRect = new ToolStripButton("Прямоугольник") { CheckOnClick = true };
+            var bEll = new ToolStripButton("Эллипс") { CheckOnClick = true };
+            var bLine = new ToolStripButton("Линия") { CheckOnClick = true };
 
+            bNew.Click += (_, __) => DoNewCanvas();
             bOpen.Click += (_, __) => DoOpen();
             bSave.Click += (_, __) => DoSave();
             bUndo.Click += (_, __) => { _history.Undo(); Invalidate(); };
@@ -96,7 +113,7 @@ namespace SVG_Editor
             _ts.GripStyle = ToolStripGripStyle.Hidden;
             _ts.Items.AddRange(new ToolStripItem[]
             {
-                bOpen, bSave, new ToolStripSeparator(),
+                bNew, bOpen, bSave, new ToolStripSeparator(),
                 bUndo, bRedo, new ToolStripSeparator(),
                 bSelect, bRect, bEll, bLine, new ToolStripSeparator(),
                 bDel
@@ -107,11 +124,80 @@ namespace SVG_Editor
             _ss.Items.Add(_status);
             Controls.Add(_ss);
 
+            // ===== Панель свойств справа =====
+            _propsPanel = new Panel
+            {
+                Dock = DockStyle.Right,
+                Width = 220,
+                Padding = new Padding(8),
+                BackColor = SystemColors.ControlLight
+            };
+
+            var lblTitle = new Label { Text = "Свойства", Dock = DockStyle.Top, Font = new Font(Font, FontStyle.Bold), Height = 24 };
+
+            var table = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 6,
+                AutoSize = false
+            };
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+
+            void AddRow(string label, Control editor)
+            {
+                int row = table.RowCount - 1;
+                table.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+                var l = new Label { Text = label, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill };
+                editor.Dock = DockStyle.Fill;
+                table.Controls.Add(l, 0, row);
+                table.Controls.Add(editor, 1, row);
+                table.RowCount++;
+            }
+
+            // координаты и размеры
+            _tbX = new TextBox();
+            _tbY = new TextBox();
+            _tbW = new TextBox();
+            _tbH = new TextBox();
+
+            AddRow("X:", _tbX);
+            AddRow("Y:", _tbY);
+            AddRow("Ширина:", _tbW);
+            AddRow("Высота:", _tbH);
+
+            // заливка / обводка
+            _btnFill = new Button { Text = "Выбрать..." };
+            _btnStroke = new Button { Text = "Выбрать..." };
+            AddRow("Заливка:", _btnFill);
+            AddRow("Обводка:", _btnStroke);
+
+            // толщина обводки
+            _numStrokeWidth = new NumericUpDown { Minimum = 0, Maximum = 50, DecimalPlaces = 1, Increment = 0.5M };
+            AddRow("Толщина:", _numStrokeWidth);
+
+            // события
+            _btnFill.Click += (_, __) => ChangeColor(fill: true);
+            _btnStroke.Click += (_, __) => ChangeColor(fill: false);
+
+            _tbX.Leave += (_, __) => ApplyPropsFromPanel();
+            _tbY.Leave += (_, __) => ApplyPropsFromPanel();
+            _tbW.Leave += (_, __) => ApplyPropsFromPanel();
+            _tbH.Leave += (_, __) => ApplyPropsFromPanel();
+            _numStrokeWidth.ValueChanged += (_, __) => ApplyPropsFromPanel();
+
+            _propsPanel.Controls.Add(table);
+            _propsPanel.Controls.Add(lblTitle);
+            Controls.Add(_propsPanel);
+            _propsPanel.BringToFront();
+
             // События
             MouseDown += OnMouseDown;
             MouseMove += OnMouseMove;
             MouseUp += OnMouseUp;
             KeyDown += OnKeyDown;
+            MouseWheel += OnMouseWheel;
         }
 
         private void SetTool(Tool t, ToolStripButton bSelect, ToolStripButton bRect, ToolStripButton bEll, ToolStripButton bLine)
@@ -121,7 +207,7 @@ namespace SVG_Editor
             bRect.Checked = t == Tool.Rect;
             bEll.Checked = t == Tool.Ellipse;
             bLine.Checked = t == Tool.Line;
-            _status.Text = $"Tool: {_tool}" + (_stylePickMode ? "  |  Пипетка" : "");
+            _status.Text = $"Инструмент: {_tool}" + (_stylePickMode ? "  |  Пипетка" : "");
         }
 
         // ===== Рендеринг =====
@@ -224,6 +310,7 @@ namespace SVG_Editor
                 // 4) обычное одиночное выделение
                 _multiSelection.Clear();
                 _selection = HitTest(pCanvas);
+                UpdatePanelFromSelection();
                 if (_selection is not null)
                     _startBounds = _selection.Bounds;
                 Invalidate();
@@ -233,6 +320,7 @@ namespace SVG_Editor
                 var r = new RectShape(new RectangleF(pCanvas, SizeF.Empty));
                 _shapes.Add(r);
                 _selection = r;
+                UpdatePanelFromSelection();
                 _startBounds = r.Bounds;
             }
             else if (_tool == Tool.Ellipse)
@@ -240,6 +328,7 @@ namespace SVG_Editor
                 var el = new EllipseShape(new RectangleF(pCanvas, SizeF.Empty));
                 _shapes.Add(el);
                 _selection = el;
+                UpdatePanelFromSelection();
                 _startBounds = el.Bounds;
             }
             else if (_tool == Tool.Line)
@@ -247,6 +336,7 @@ namespace SVG_Editor
                 _newLine = new LineShape(pCanvas, pCanvas);
                 _shapes.Add(_newLine);
                 _selection = _newLine;
+                UpdatePanelFromSelection();
             }
         }
 
@@ -297,12 +387,46 @@ namespace SVG_Editor
             else if (_tool == Tool.Rect && _selection is RectShape r)
             {
                 var b = SelectionRenderer.RectFromTwoPoints(_dragStartCanvas, pCanvas);
+
+                // Shift = квадрат
+                if ((ModifierKeys & Keys.Shift) == Keys.Shift)
+                {
+                    float dx = pCanvas.X - _dragStartCanvas.X;
+                    float dy = pCanvas.Y - _dragStartCanvas.Y;
+
+                    float size = MathF.Min(MathF.Abs(dx), MathF.Abs(dy));
+                    float x = _dragStartCanvas.X;
+                    float y = _dragStartCanvas.Y;
+
+                    if (dx < 0) x -= size;
+                    if (dy < 0) y -= size;
+
+                    b = new RectangleF(x, y, size, size);
+                }
+
                 r.Bounds = b;
                 Invalidate();
             }
             else if (_tool == Tool.Ellipse && _selection is EllipseShape el)
             {
                 var b = SelectionRenderer.RectFromTwoPoints(_dragStartCanvas, pCanvas);
+
+                // Shift = круг
+                if ((ModifierKeys & Keys.Shift) == Keys.Shift)
+                {
+                    float dx = pCanvas.X - _dragStartCanvas.X;
+                    float dy = pCanvas.Y - _dragStartCanvas.Y;
+
+                    float size = MathF.Min(MathF.Abs(dx), MathF.Abs(dy));
+                    float x = _dragStartCanvas.X;
+                    float y = _dragStartCanvas.Y;
+
+                    if (dx < 0) x -= size;
+                    if (dy < 0) y -= size;
+
+                    b = new RectangleF(x, y, size, size);
+                }
+
                 el.Bounds = b;
                 Invalidate();
             }
@@ -325,8 +449,9 @@ namespace SVG_Editor
                 }
                 else if (Math.Abs(_netDelta.X) > 0.01f || Math.Abs(_netDelta.Y) > 0.01f)
                 {
-                    var cmd = new MoveCommand(_selection, _netDelta);
-                    _history.Exec(cmd);
+                    //TODO: При желании можно сделать отдельную команду которая использует перемещение фигуры при задании координат панель свойств
+                    //var cmd = new MoveCommand(_selection, _netDelta);
+                    //_history.Exec(cmd);
                 }
             }
             else if (_tool == Tool.Rect || _tool == Tool.Ellipse)
@@ -479,6 +604,15 @@ namespace SVG_Editor
                 return;
             }
 
+            // Масштаб клавишами +/- (без Ctrl)
+            //if (!e.Control && !e.Alt && (e.KeyCode == Keys.Oemplus || e.KeyCode == Keys.Add || e.KeyCode == Keys.OemMinus || e.KeyCode == Keys.Subtract))
+            //{
+            //    float factor = (e.KeyCode == Keys.OemMinus || e.KeyCode == Keys.Subtract) ? 0.9f : 1.1f;
+            //    _zoom = MathF.Max(0.1f, MathF.Min(4f, _zoom * factor));
+            //    Invalidate();
+            //    return;
+            //}
+
             // Подвигать стрелками (1px, с Shift — 10px)
             if (_selection is not null &&
                 (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right ||
@@ -502,12 +636,42 @@ namespace SVG_Editor
             }
         }
 
+        private void OnMouseWheel(object? sender, MouseEventArgs e)
+        {
+            // Ctrl + колесо = zoom
+            float factor = e.Delta > 0 ? 1.1f : 0.9f;
+
+            // ограничим от 10% до 400%
+            float newZoom = MathF.Max(0.1f, MathF.Min(4f, _zoom * factor));
+
+            if (Math.Abs(newZoom - _zoom) < 0.001f)
+                return;
+
+            // масштаб относительно позиции курсора
+            int yOff = _ts.Height + MainMenuStrip!.Height;
+            var mouseBefore = new PointF(
+                (e.X - _pan.X) / _zoom,
+                (e.Y - yOff - _pan.Y) / _zoom);
+
+            _zoom = newZoom;
+
+            var mouseAfterScreen = new PointF(
+                mouseBefore.X * _zoom + _pan.X,
+                mouseBefore.Y * _zoom + _pan.Y + yOff);
+
+            _pan.X += e.X - mouseAfterScreen.X;
+            _pan.Y += (e.Y - yOff) - (mouseAfterScreen.Y - yOff);
+
+            Invalidate();
+        }
+
         private void DeleteSelection()
         {
             if (_selection is null) return;
             _history.Exec(new RemoveShapeCommand(_shapes, _selection));
             _selection = null;
             _multiSelection.Clear();
+            UpdatePanelFromSelection();
             Invalidate();
         }
 
@@ -657,12 +821,119 @@ namespace SVG_Editor
             _multiSelection.Clear();
             Invalidate();
         }
+        private void DoNewCanvas()
+        {
+            using var dlg = new NewCanvasForm(_canvasSize);
+            if (dlg.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            _canvasSize = dlg.CanvasSize;
+            _shapes.Clear();
+            _selection = null;
+            _multiSelection.Clear();
+            UpdatePanelFromSelection();
+            Invalidate();
+        }
 
         private static float ParseF(XElement el, string name, float def = 0f) =>
             el.Attribute(name) is XAttribute a && float.TryParse(a.Value, out var v) ? v : def;
 
         private static Color ParseColor(XElement el, string name, Color def) =>
             el.Attribute(name) is XAttribute a ? ColorTranslator.FromHtml(a.Value) : def;
-       
+
+        private void UpdatePanelFromSelection()
+        {
+            if (_updatingPropsFromSelection) return;
+            _updatingPropsFromSelection = true;
+
+            if (_selection is null)
+            {
+                _tbX.Text = "";
+                _tbY.Text = "";
+                _tbW.Text = "";
+                _tbH.Text = "";
+                _btnFill.BackColor = SystemColors.Control;
+                _btnStroke.BackColor = SystemColors.Control;
+                _numStrokeWidth.Value = 0;
+            }
+            else
+            {
+                var b = _selection.Bounds;
+                _tbX.Text = b.X.ToString("0.##");
+                _tbY.Text = b.Y.ToString("0.##");
+                _tbW.Text = b.Width.ToString("0.##");
+                _tbH.Text = b.Height.ToString("0.##");
+                _btnFill.BackColor = _selection.Fill.IsEmpty ? SystemColors.Control : _selection.Fill;
+                _btnStroke.BackColor = _selection.Stroke.IsEmpty ? SystemColors.Control : _selection.Stroke;
+                _numStrokeWidth.Value = (decimal)_selection.StrokeWidth;
+            }
+
+            _updatingPropsFromSelection = false;
+        }
+
+        private void ApplyPropsFromPanel()
+        {
+            if (_updatingPropsFromSelection) return;
+            if (_selection is null) return;
+
+            if (!float.TryParse(_tbX.Text, out var x)) x = _selection.Bounds.X;
+            if (!float.TryParse(_tbY.Text, out var y)) y = _selection.Bounds.Y;
+            if (!float.TryParse(_tbW.Text, out var w)) w = _selection.Bounds.Width;
+            if (!float.TryParse(_tbH.Text, out var h)) h = _selection.Bounds.Height;
+
+            var oldBounds = _selection.Bounds;
+            var newBounds = new RectangleF(x, y, w, h);
+
+            var oldFill = _selection.Fill;
+            var oldStroke = _selection.Stroke;
+            var oldWidth = _selection.StrokeWidth;
+
+            var newFill = _selection.Fill;
+            var newStroke = _selection.Stroke;
+            var newWidth = (float)_numStrokeWidth.Value;
+
+            if (newBounds == oldBounds && newFill == oldFill && newStroke == oldStroke && Math.Abs(newWidth - oldWidth) < 0.001f)
+                return;
+
+            var cmd = new PropertyChangeCommand(
+                _selection,
+                oldBounds, newBounds,
+                oldFill, newFill,
+                oldStroke, newStroke,
+                oldWidth, newWidth);
+
+            _history.Exec(cmd);
+            Invalidate();
+        }
+
+        private void ChangeColor(bool fill)
+        {
+            if (_selection is null) return;
+            _colorDialog.Color = fill ? _selection.Fill : _selection.Stroke;
+            if (_colorDialog.ShowDialog() != DialogResult.OK) return;
+
+            var oldBounds = _selection.Bounds;
+            var newBounds = oldBounds;
+
+            var oldFill = _selection.Fill;
+            var oldStroke = _selection.Stroke;
+            var oldWidth = _selection.StrokeWidth;
+
+            var newFill = fill ? _colorDialog.Color : oldFill;
+            var newStroke = fill ? oldStroke : _colorDialog.Color;
+            var newWidth = oldWidth;
+
+            var cmd = new PropertyChangeCommand(
+                _selection,
+                oldBounds, newBounds,
+                oldFill, newFill,
+                oldStroke, newStroke,
+                oldWidth, newWidth);
+
+            _history.Exec(cmd);
+            UpdatePanelFromSelection();
+            Invalidate();
+        }
+
     }
 }
