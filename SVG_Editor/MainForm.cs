@@ -1,8 +1,7 @@
 using SVG_Editor.Commands;
-using SVG_Editor.Enums;
 using SVG_Editor.Shapes;
-using System.Reflection.Metadata;
 using System.Xml.Linq;
+using System.Globalization;
 
 namespace SVG_Editor
 {
@@ -34,6 +33,10 @@ namespace SVG_Editor
         private readonly ToolStrip _ts = new();
         private readonly StatusStrip _ss = new();
         private readonly ToolStripStatusLabel _status = new();
+        private ToolStripButton _btnSelect = null!;
+        private ToolStripButton _btnRect = null!;
+        private ToolStripButton _btnEll = null!;
+        private ToolStripButton _btnLine = null!;
 
         // Пипетка стиля
         private bool _stylePickMode;
@@ -53,6 +56,8 @@ namespace SVG_Editor
         private NumericUpDown _numStrokeWidth = null!;
         private readonly ColorDialog _colorDialog = new();
         private bool _updatingPropsFromSelection;
+
+        private static readonly XNamespace SvgNs = "http://www.w3.org/2000/svg";
 
         public MainForm()
         {
@@ -93,10 +98,10 @@ namespace SVG_Editor
             var bRedo = new ToolStripButton("Повторить");
             var bDel = new ToolStripButton("Удалить");
 
-            var bSelect = new ToolStripButton("Выбор") { CheckOnClick = true, Checked = true };
-            var bRect = new ToolStripButton("Прямоугольник") { CheckOnClick = true };
-            var bEll = new ToolStripButton("Эллипс") { CheckOnClick = true };
-            var bLine = new ToolStripButton("Линия") { CheckOnClick = true };
+            _btnSelect = new ToolStripButton("Выбор") { CheckOnClick = true, Checked = true };
+            _btnRect = new ToolStripButton("Прямоугольник") { CheckOnClick = true };
+            _btnEll = new ToolStripButton("Эллипс") { CheckOnClick = true };
+            _btnLine = new ToolStripButton("Линия") { CheckOnClick = true };
 
             bNew.Click += (_, __) => DoNewCanvas();
             bOpen.Click += (_, __) => DoOpen();
@@ -105,17 +110,17 @@ namespace SVG_Editor
             bRedo.Click += (_, __) => { _history.Redo(); Invalidate(); };
             bDel.Click += (_, __) => DeleteSelection();
 
-            bSelect.Click += (_, __) => SetTool(Tool.Select, bSelect, bRect, bEll, bLine);
-            bRect.Click += (_, __) => SetTool(Tool.Rect, bSelect, bRect, bEll, bLine);
-            bEll.Click += (_, __) => SetTool(Tool.Ellipse, bSelect, bRect, bEll, bLine);
-            bLine.Click += (_, __) => SetTool(Tool.Line, bSelect, bRect, bEll, bLine);
+            _btnSelect.Click += (_, __) => SetTool(Tool.Select);
+            _btnRect.Click += (_, __) => SetTool(Tool.Rect);
+            _btnEll.Click += (_, __) => SetTool(Tool.Ellipse);
+            _btnLine.Click += (_, __) => SetTool(Tool.Line);
 
             _ts.GripStyle = ToolStripGripStyle.Hidden;
             _ts.Items.AddRange(new ToolStripItem[]
             {
                 bNew, bOpen, bSave, new ToolStripSeparator(),
                 bUndo, bRedo, new ToolStripSeparator(),
-                bSelect, bRect, bEll, bLine, new ToolStripSeparator(),
+                _btnSelect, _btnRect, _btnEll, _btnLine, new ToolStripSeparator(),
                 bDel
             });
             Controls.Add(_ts);
@@ -191,22 +196,25 @@ namespace SVG_Editor
             _propsPanel.Controls.Add(lblTitle);
             Controls.Add(_propsPanel);
             _propsPanel.BringToFront();
+            MouseWheel += OnMouseWheel;
+            _propsPanel.MouseWheel += OnMouseWheel;
 
             // События
             MouseDown += OnMouseDown;
             MouseMove += OnMouseMove;
             MouseUp += OnMouseUp;
             KeyDown += OnKeyDown;
-            MouseWheel += OnMouseWheel;
+
+            SetTool(Tool.Select);
         }
 
-        private void SetTool(Tool t, ToolStripButton bSelect, ToolStripButton bRect, ToolStripButton bEll, ToolStripButton bLine)
+        private void SetTool(Tool t)
         {
             _tool = t;
-            bSelect.Checked = t == Tool.Select;
-            bRect.Checked = t == Tool.Rect;
-            bEll.Checked = t == Tool.Ellipse;
-            bLine.Checked = t == Tool.Line;
+            _btnSelect.Checked = t == Tool.Select;
+            _btnRect.Checked = t == Tool.Rect;
+            _btnEll.Checked = t == Tool.Ellipse;
+            _btnLine.Checked = t == Tool.Line;
             _status.Text = $"Инструмент: {_tool}" + (_stylePickMode ? "  |  Пипетка" : "");
         }
 
@@ -218,15 +226,23 @@ namespace SVG_Editor
             g.Clear(Color.White);
 
             int topOffset = _ts.Height + MainMenuStrip!.Height;
-            using (var pen = new Pen(Color.LightGray, 1))
-                g.DrawRectangle(pen, 0, topOffset, (int)_canvasSize.Width, (int)_canvasSize.Height);
 
-            g.TranslateTransform(0, topOffset);
+            // Сначала настраиваем трансформацию:
+            // 1) смещаем под меню и тулбар
+            // 2) учитываем панорамирование
+            // 3) учитываем масштаб
+            g.TranslateTransform(_pan.X, _pan.Y + topOffset);
+            g.ScaleTransform(_zoom, _zoom);
 
+            // Рамка холста в "координатах документа"
+            using (var pen = new Pen(Color.LightGray, 1 / _zoom)) // толщина не раздувается от масштаба
+                g.DrawRectangle(pen, 0, 0, _canvasSize.Width, _canvasSize.Height);
+
+            // Фигуры
             foreach (var s in _shapes)
                 s.Draw(g);
 
-            // рамка выделения: если есть множественный выбор — рисуем рамки всем
+            // Рамки выделения — тоже в координатах документа
             if (_multiSelection.Count > 0)
             {
                 foreach (var s in _multiSelection)
@@ -459,11 +475,7 @@ namespace SVG_Editor
                 if (_selection is not null)
                     _history.Exec(new AddShapeCommand(_shapes, _selection));
 
-                SetTool(Tool.Select,
-                    (ToolStripButton)_ts.Items[6],
-                    (ToolStripButton)_ts.Items[7],
-                    (ToolStripButton)_ts.Items[8],
-                    (ToolStripButton)_ts.Items[9]);
+                SetTool(Tool.Select);
             }
             else if (_tool == Tool.Line)
             {
@@ -471,11 +483,7 @@ namespace SVG_Editor
                 {
                     _history.Exec(new AddShapeCommand(_shapes, _newLine));
                     _newLine = null;
-                    SetTool(Tool.Select,
-                        (ToolStripButton)_ts.Items[6],
-                        (ToolStripButton)_ts.Items[7],
-                        (ToolStripButton)_ts.Items[8],
-                        (ToolStripButton)_ts.Items[9]);
+                    SetTool(Tool.Select);
                 }
             }
 
@@ -497,38 +505,22 @@ namespace SVG_Editor
             {
                 if (e.KeyCode == Keys.V)
                 {
-                    SetTool(Tool.Select,
-                        (ToolStripButton)_ts.Items[6],
-                        (ToolStripButton)_ts.Items[7],
-                        (ToolStripButton)_ts.Items[8],
-                        (ToolStripButton)_ts.Items[9]);
+                    SetTool(Tool.Select);
                     return;
                 }
                 if (e.KeyCode == Keys.R)
                 {
-                    SetTool(Tool.Rect,
-                        (ToolStripButton)_ts.Items[6],
-                        (ToolStripButton)_ts.Items[7],
-                        (ToolStripButton)_ts.Items[8],
-                        (ToolStripButton)_ts.Items[9]);
+                    SetTool(Tool.Rect);
                     return;
                 }
                 if (e.KeyCode == Keys.E)
                 {
-                    SetTool(Tool.Ellipse,
-                        (ToolStripButton)_ts.Items[6],
-                        (ToolStripButton)_ts.Items[7],
-                        (ToolStripButton)_ts.Items[8],
-                        (ToolStripButton)_ts.Items[9]);
+                    SetTool(Tool.Ellipse);
                     return;
                 }
                 if (e.KeyCode == Keys.L)
                 {
-                    SetTool(Tool.Line,
-                        (ToolStripButton)_ts.Items[6],
-                        (ToolStripButton)_ts.Items[7],
-                        (ToolStripButton)_ts.Items[8],
-                        (ToolStripButton)_ts.Items[9]);
+                    SetTool(Tool.Line);
                     return;
                 }
 
@@ -604,15 +596,6 @@ namespace SVG_Editor
                 return;
             }
 
-            // Масштаб клавишами +/- (без Ctrl)
-            //if (!e.Control && !e.Alt && (e.KeyCode == Keys.Oemplus || e.KeyCode == Keys.Add || e.KeyCode == Keys.OemMinus || e.KeyCode == Keys.Subtract))
-            //{
-            //    float factor = (e.KeyCode == Keys.OemMinus || e.KeyCode == Keys.Subtract) ? 0.9f : 1.1f;
-            //    _zoom = MathF.Max(0.1f, MathF.Min(4f, _zoom * factor));
-            //    Invalidate();
-            //    return;
-            //}
-
             // Подвигать стрелками (1px, с Shift — 10px)
             if (_selection is not null &&
                 (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right ||
@@ -638,29 +621,32 @@ namespace SVG_Editor
 
         private void OnMouseWheel(object? sender, MouseEventArgs e)
         {
-            // Ctrl + колесо = zoom
-            float factor = e.Delta > 0 ? 1.1f : 0.9f;
-
-            // ограничим от 10% до 400%
-            float newZoom = MathF.Max(0.1f, MathF.Min(4f, _zoom * factor));
-
-            if (Math.Abs(newZoom - _zoom) < 0.001f)
+            // Масштаб только при зажатом Shift
+            if ((ModifierKeys & Keys.Shift) != Keys.Shift)
                 return;
 
-            // масштаб относительно позиции курсора
-            int yOff = _ts.Height + MainMenuStrip!.Height;
-            var mouseBefore = new PointF(
+            float factor = e.Delta > 0 ? 1.1f : 0.9f;
+
+            // ограничиваем диапазон
+            float newZoom = MathF.Max(0.1f, MathF.Min(4f, _zoom * factor));
+            if (Math.Abs(newZoom - _zoom) < 0.0001f)
+                return;
+
+            int topOffset = _ts.Height + MainMenuStrip!.Height;
+
+            // точка под курсором в координатах документа ДО зума
+            var canvasBefore = new PointF(
                 (e.X - _pan.X) / _zoom,
-                (e.Y - yOff - _pan.Y) / _zoom);
+                (e.Y - topOffset - _pan.Y) / _zoom);
 
             _zoom = newZoom;
 
-            var mouseAfterScreen = new PointF(
-                mouseBefore.X * _zoom + _pan.X,
-                mouseBefore.Y * _zoom + _pan.Y + yOff);
+            // хотим, чтобы та же точка осталась под курсором ПОСЛЕ зума
+            var screenAfterX = canvasBefore.X * _zoom + _pan.X;
+            var screenAfterY = canvasBefore.Y * _zoom + _pan.Y + topOffset;
 
-            _pan.X += e.X - mouseAfterScreen.X;
-            _pan.Y += (e.Y - yOff) - (mouseAfterScreen.Y - yOff);
+            _pan.X += e.X - screenAfterX;
+            _pan.Y += (e.Y - topOffset) - (screenAfterY - topOffset);
 
             Invalidate();
         }
@@ -692,20 +678,34 @@ namespace SVG_Editor
         }
 
         // ===== SVG I/O =====
+  
         private void DoSave()
         {
-            using var sfd = new SaveFileDialog() { Filter = "SVG files (*.svg)|*.svg" };
+            using var sfd = new SaveFileDialog() { Filter = "SVG файлы (*.svg)|*.svg" };
             if (sfd.ShowDialog() != DialogResult.OK) return;
 
-            var root = new XElement("svg",
-                new XAttribute("xmlns", "http://www.w3.org/2000/svg"),
-                new XAttribute("width", _canvasSize.Width),
-                new XAttribute("height", _canvasSize.Height));
+            try
+            {
+                var root = new XElement(SvgNs + "svg",
+                    new XAttribute("version", "1.1"),
+                    new XAttribute("width", F(_canvasSize.Width)),
+                    new XAttribute("height", F(_canvasSize.Height)));
 
-            foreach (var sh in _shapes)
-                SaveShapeToSvg(root, sh);
+                foreach (var sh in _shapes)
+                    SaveShapeToSvg(root, sh);
 
-            new XDocument(root).Save(sfd.FileName);
+                var doc = new XDocument(new XDeclaration("1.0", "utf-8", "yes"), root);
+                doc.Save(sfd.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    this,
+                    "Ошибка при сохранении SVG-файла:\r\n" + ex.Message,
+                    "Ошибка сохранения",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
 
         private void SaveShapeToSvg(XElement parent, IShape sh)
@@ -713,41 +713,41 @@ namespace SVG_Editor
             switch (sh)
             {
                 case RectShape r:
-                    parent.Add(new XElement("rect",
-                        new XAttribute("x", r.Bounds.X),
-                        new XAttribute("y", r.Bounds.Y),
-                        new XAttribute("width", r.Bounds.Width),
-                        new XAttribute("height", r.Bounds.Height),
+                    parent.Add(new XElement(SvgNs + "rect",
+                        new XAttribute("x", F(r.Bounds.X)),
+                        new XAttribute("y", F(r.Bounds.Y)),
+                        new XAttribute("width", F(r.Bounds.Width)),
+                        new XAttribute("height", F(r.Bounds.Height)),
                         new XAttribute("fill", ColorTranslator.ToHtml(r.Fill)),
                         new XAttribute("stroke", ColorTranslator.ToHtml(r.Stroke)),
-                        new XAttribute("stroke-width", r.StrokeWidth)));
+                        new XAttribute("stroke-width", F(r.StrokeWidth))));
                     break;
 
                 case EllipseShape el:
                     var cx = el.Bounds.X + el.Bounds.Width / 2f;
                     var cy = el.Bounds.Y + el.Bounds.Height / 2f;
-                    parent.Add(new XElement("ellipse",
-                        new XAttribute("cx", cx),
-                        new XAttribute("cy", cy),
-                        new XAttribute("rx", el.Bounds.Width / 2f),
-                        new XAttribute("ry", el.Bounds.Height / 2f),
+                    parent.Add(new XElement(SvgNs + "ellipse",
+                        new XAttribute("cx", F(cx)),
+                        new XAttribute("cy", F(cy)),
+                        new XAttribute("rx", F(el.Bounds.Width / 2f)),
+                        new XAttribute("ry", F(el.Bounds.Height / 2f)),
                         new XAttribute("fill", ColorTranslator.ToHtml(el.Fill)),
                         new XAttribute("stroke", ColorTranslator.ToHtml(el.Stroke)),
-                        new XAttribute("stroke-width", el.StrokeWidth)));
+                        new XAttribute("stroke-width", F(el.StrokeWidth))));
                     break;
 
                 case LineShape ln:
-                    parent.Add(new XElement("line",
-                        new XAttribute("x1", ln.P1.X),
-                        new XAttribute("y1", ln.P1.Y),
-                        new XAttribute("x2", ln.P2.X),
-                        new XAttribute("y2", ln.P2.Y),
+                    parent.Add(new XElement(SvgNs + "line",
+                        new XAttribute("x1", F(ln.P1.X)),
+                        new XAttribute("y1", F(ln.P1.Y)),
+                        new XAttribute("x2", F(ln.P2.X)),
+                        new XAttribute("y2", F(ln.P2.Y)),
                         new XAttribute("stroke", ColorTranslator.ToHtml(ln.Stroke)),
-                        new XAttribute("stroke-width", ln.StrokeWidth)));
+                        new XAttribute("stroke-width", F(ln.StrokeWidth))));
                     break;
 
                 case GroupShape g:
-                    // группы в SVG пока «плющим» в набор отдельных фигур (без <g>)
+                    // группы "плющим" в набор примитивов
                     foreach (var c in g.Children)
                         SaveShapeToSvg(parent, c);
                     break;
@@ -756,71 +756,130 @@ namespace SVG_Editor
 
         private void DoOpen()
         {
-            using var ofd = new OpenFileDialog() { Filter = "SVG files (*.svg)|*.svg" };
+            using var ofd = new OpenFileDialog() { Filter = "SVG файлы (*.svg)|*.svg" };
             if (ofd.ShowDialog() != DialogResult.OK) return;
 
-            var doc = XDocument.Load(ofd.FileName);
-            var root = doc.Root ?? throw new Exception("Invalid SVG");
-            _shapes.Clear();
+            try
+            {
+                var doc = XDocument.Load(ofd.FileName);
+                var root = doc.Root;
+                if (root == null || root.Name.LocalName != "svg")
+                {
+                    MessageBox.Show(
+                        this,
+                        "Файл не является корректным SVG-документом.",
+                        "Ошибка открытия",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
 
-            var wAttr = root.Attribute("width");
-            var hAttr = root.Attribute("height");
-            if (wAttr != null && hAttr != null &&
-                float.TryParse(wAttr.Value, out var w) &&
-                float.TryParse(hAttr.Value, out var h))
+                _shapes.Clear();
+
+                // размер холста: пытаемся вытащить width/height, иначе viewBox
+                float w = _canvasSize.Width;
+                float h = _canvasSize.Height;
+
+                var wAttr = root.Attribute("width");
+                var hAttr = root.Attribute("height");
+                if (wAttr != null && hAttr != null)
+                {
+                    w = ParseSvgLength(wAttr.Value, w);
+                    h = ParseSvgLength(hAttr.Value, h);
+                }
+                else
+                {
+                    var vbAttr = root.Attribute("viewBox");
+                    if (vbAttr != null)
+                    {
+                        var parts = vbAttr.Value.Split(new[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length == 4 &&
+                            float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var vw) &&
+                            float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var vh))
+                        {
+                            w = vw;
+                            h = vh;
+                        }
+                    }
+                }
+
                 _canvasSize = new SizeF(w, h);
 
-            foreach (var el in root.Elements())
-            {
-                switch (el.Name.LocalName)
+                foreach (var el in root.Descendants())
                 {
-                    case "rect":
-                        var rx = ParseF(el, "x");
-                        var ry = ParseF(el, "y");
-                        var rw = ParseF(el, "width");
-                        var rh = ParseF(el, "height");
-                        var r = new RectShape(new RectangleF(rx, ry, rw, rh))
-                        {
-                            Fill = ParseColor(el, "fill", Color.Transparent),
-                            Stroke = ParseColor(el, "stroke", Color.Black),
-                            StrokeWidth = ParseF(el, "stroke-width", 1f)
-                        };
-                        _shapes.Add(r);
-                        break;
+                    switch (el.Name.LocalName)
+                    {
+                        case "rect":
+                            {
+                                var rx = ParseSvgLength(el.Attribute("x")?.Value, 0);
+                                var ry = ParseSvgLength(el.Attribute("y")?.Value, 0);
+                                var rw = ParseSvgLength(el.Attribute("width")?.Value, 0);
+                                var rh = ParseSvgLength(el.Attribute("height")?.Value, 0);
+                                if (rw <= 0 || rh <= 0) break;
 
-                    case "ellipse":
-                        var cx = ParseF(el, "cx");
-                        var cy = ParseF(el, "cy");
-                        var rx2 = ParseF(el, "rx");
-                        var ry2 = ParseF(el, "ry");
-                        var e = new EllipseShape(new RectangleF(cx - rx2, cy - ry2, rx2 * 2, ry2 * 2))
-                        {
-                            Fill = ParseColor(el, "fill", Color.Transparent),
-                            Stroke = ParseColor(el, "stroke", Color.Black),
-                            StrokeWidth = ParseF(el, "stroke-width", 1f)
-                        };
-                        _shapes.Add(e);
-                        break;
+                                var r = new RectShape(new RectangleF(rx, ry, rw, rh))
+                                {
+                                    Fill = ParseColor(el, "fill", Color.Transparent),
+                                    Stroke = ParseColor(el, "stroke", Color.Black),
+                                    StrokeWidth = ParseSvgLength(el.Attribute("stroke-width")?.Value, 1f)
+                                };
+                                _shapes.Add(r);
+                                break;
+                            }
 
-                    case "line":
-                        var x1 = ParseF(el, "x1");
-                        var y1 = ParseF(el, "y1");
-                        var x2 = ParseF(el, "x2");
-                        var y2 = ParseF(el, "y2");
-                        var l = new LineShape(new PointF(x1, y1), new PointF(x2, y2))
-                        {
-                            Stroke = ParseColor(el, "stroke", Color.Black),
-                            StrokeWidth = ParseF(el, "stroke-width", 1f)
-                        };
-                        _shapes.Add(l);
-                        break;
+                        case "ellipse":
+                            {
+                                var cx = ParseSvgLength(el.Attribute("cx")?.Value, 0);
+                                var cy = ParseSvgLength(el.Attribute("cy")?.Value, 0);
+                                var rx2 = ParseSvgLength(el.Attribute("rx")?.Value, 0);
+                                var ry2 = ParseSvgLength(el.Attribute("ry")?.Value, 0);
+                                if (rx2 <= 0 || ry2 <= 0) break;
+
+                                var eShape = new EllipseShape(new RectangleF(cx - rx2, cy - ry2, rx2 * 2, ry2 * 2))
+                                {
+                                    Fill = ParseColor(el, "fill", Color.Transparent),
+                                    Stroke = ParseColor(el, "stroke", Color.Black),
+                                    StrokeWidth = ParseSvgLength(el.Attribute("stroke-width")?.Value, 1f)
+                                };
+                                _shapes.Add(eShape);
+                                break;
+                            }
+
+                        case "line":
+                            {
+                                var x1 = ParseSvgLength(el.Attribute("x1")?.Value, 0);
+                                var y1 = ParseSvgLength(el.Attribute("y1")?.Value, 0);
+                                var x2 = ParseSvgLength(el.Attribute("x2")?.Value, 0);
+                                var y2 = ParseSvgLength(el.Attribute("y2")?.Value, 0);
+
+
+                                var l = new LineShape(new PointF(x1, y1), new PointF(x2, y2))
+                                {
+                                    Stroke = ParseColor(el, "stroke", Color.Black),
+                                    StrokeWidth = ParseSvgLength(el.Attribute("stroke-width")?.Value, 1f)
+                                };
+                                _shapes.Add(l);
+                                break;
+                            }
+                    }
                 }
-            }
 
-            _selection = null;
-            _multiSelection.Clear();
-            Invalidate();
+                _selection = null;
+                _multiSelection.Clear();
+                UpdatePanelFromSelection();
+                Invalidate();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    this,
+                    "Ошибка при открытии SVG-файла:\r\n" + ex.Message,
+                    "Ошибка открытия",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
+
         private void DoNewCanvas()
         {
             using var dlg = new NewCanvasForm(_canvasSize);
@@ -835,8 +894,39 @@ namespace SVG_Editor
             Invalidate();
         }
 
-        private static float ParseF(XElement el, string name, float def = 0f) =>
-            el.Attribute(name) is XAttribute a && float.TryParse(a.Value, out var v) ? v : def;
+        private static float ParseF(XElement el, string name, float def = 0f)
+        {
+            var a = el.Attribute(name);
+            if (a == null) return def;
+
+            var s = a.Value.Trim();
+
+            // часто бывает "800px"
+            if (s.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+                s = s[..^2].Trim();
+
+            // некоторые SVG пишут числа в экспоненциальной форме
+            if (float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+                return v;
+
+            return def;
+        }
+
+        private static float ParseSvgLength(string? raw, float def = 0f)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return def;
+
+            var s = raw.Trim();
+
+            if (s.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+                s = s[..^2].Trim();
+
+            if (float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+                return v;
+
+            return def;
+        }
 
         private static Color ParseColor(XElement el, string name, Color def) =>
             el.Attribute(name) is XAttribute a ? ColorTranslator.FromHtml(a.Value) : def;
@@ -935,5 +1025,7 @@ namespace SVG_Editor
             Invalidate();
         }
 
+        private static string F(float v) =>
+        v.ToString("0.###", CultureInfo.InvariantCulture);
     }
 }
