@@ -710,6 +710,16 @@ namespace SVG_Editor
 
         private void SaveShapeToSvg(XElement parent, IShape sh)
         {
+            // локальный хелпер: превращаем цвет заливки в значение атрибута fill
+            static string FillToSvg(Color c)
+            {
+                // "нет заливки" -> fill="none"
+                if (c.A == 0) // полностью прозрачный
+                    return "none";
+
+                return ColorTranslator.ToHtml(c);
+            }
+
             switch (sh)
             {
                 case RectShape r:
@@ -928,8 +938,32 @@ namespace SVG_Editor
             return def;
         }
 
-        private static Color ParseColor(XElement el, string name, Color def) =>
-            el.Attribute(name) is XAttribute a ? ColorTranslator.FromHtml(a.Value) : def;
+        private static Color ParseColor(XElement el, string name, Color def)
+        {
+            var a = el.Attribute(name);
+            if (a == null)
+                return def;
+
+            var s = a.Value.Trim();
+
+            // SVG-стандартное "нет заливки"
+            if (string.Equals(s, "none", StringComparison.OrdinalIgnoreCase))
+                return Color.Transparent;
+
+            // обрабатываем "transparent"
+            if (string.Equals(s, "transparent", StringComparison.OrdinalIgnoreCase))
+                return Color.Transparent;
+
+            try
+            {
+                return ColorTranslator.FromHtml(s);
+            }
+            catch
+            {
+                // если вдруг прилетело что-то странное - не падаем, а используем дефолт
+                return def;
+            }
+        }
 
         private void UpdatePanelFromSelection()
         {

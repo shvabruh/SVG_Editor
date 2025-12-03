@@ -9,7 +9,7 @@ namespace SVG_Editor.Shapes
     public sealed class EllipseShape: IShape
     {
         public RectangleF Bounds { get; set; }
-        public Color Fill { get; set; } = Color.FromArgb(24, Color.MediumSeaGreen);
+        public Color Fill { get; set; } = Color.Transparent;
         public Color Stroke { get; set; } = Color.SeaGreen;
         public float StrokeWidth { get; set; } = 2f;
 
@@ -17,10 +17,17 @@ namespace SVG_Editor.Shapes
 
         public void Draw(Graphics g)
         {
-            using var br = new SolidBrush(Fill);
-            using var pen = new Pen(Stroke, StrokeWidth);
-            g.FillEllipse(br, Bounds);
-            g.DrawEllipse(pen, Bounds);
+            if (Fill.A > 0)
+            {
+                using var br = new SolidBrush(Fill);
+                g.FillEllipse(br, Bounds);
+            }
+
+            if (Stroke.A > 0 && StrokeWidth > 0)
+            {
+                using var pen = new Pen(Stroke, StrokeWidth);
+                g.DrawEllipse(pen, Bounds);
+            }
         }
 
         public bool HitTest(PointF p)
