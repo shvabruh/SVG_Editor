@@ -2,6 +2,10 @@
 
 namespace SVG_Editor.Commands
 {
+    /// <summary>
+    /// Обобщённая команда изменения свойств фигуры:
+    /// границ, заливки, обводки и толщины.
+    /// Используется панелью свойств.
     public sealed class PropertyChangeCommand: ICommand
     {
         private readonly IShape _shape;

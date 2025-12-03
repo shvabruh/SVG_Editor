@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 
 namespace SVG_Editor.Commands
 {
+    /// <summary>
+    /// Команда разгруппировки объекта GroupShape обратно в отдельные фигуры.
+    /// </summary>
     public sealed class UngroupCommand: ICommand
     {
         private readonly List<IShape> _list;

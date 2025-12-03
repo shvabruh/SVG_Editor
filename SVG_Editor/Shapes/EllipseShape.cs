@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 
 namespace SVG_Editor.Shapes
 {
+    /// <summary>
+    /// Эллипс с возможной заливкой и обводкой.
+    /// При равных размерах по ширине и высоте используется как круг.
+    /// </summary>
     public sealed class EllipseShape: IShape
     {
         public RectangleF Bounds { get; set; }
@@ -15,6 +19,10 @@ namespace SVG_Editor.Shapes
 
         public EllipseShape(RectangleF b) { Bounds = b; }
 
+        /// <summary>
+        /// Отрисовывает эллипс, учитывая заливку и обводку.
+        /// </summary>
+        public void Draw(Graphics g)
         public void Draw(Graphics g)
         {
             if (Fill.A > 0)

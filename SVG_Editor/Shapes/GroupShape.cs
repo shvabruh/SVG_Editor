@@ -6,8 +6,15 @@ using System.Threading.Tasks;
 
 namespace SVG_Editor.Shapes
 {
+    /// <summary>
+    /// Групповая фигура, объединяющая несколько других фигур
+    /// и позволяющая перемещать их как единый объект.
+    /// </summary>
     public sealed class GroupShape: IShape
     {
+        /// <summary>
+        /// Список фигур, входящих в группу.
+        /// </summary>
         public List<IShape> Children { get; }
         private RectangleF _bounds;
 
@@ -46,6 +53,10 @@ namespace SVG_Editor.Shapes
         public IShape Clone() =>
             new GroupShape(Children.Select(c => c.Clone()));
 
+        /// <summary>
+        /// Переотображает границы группы по текущим границам всех дочерних фигур.
+        /// Вызывается после перемещения или изменения размеров.
+        /// </summary>
         public void RecalcBounds()
         {
             if (Children.Count == 0)

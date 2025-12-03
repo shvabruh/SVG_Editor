@@ -2,6 +2,10 @@
 
 namespace SVG_Editor.Commands
 {
+    /// <summary>
+    /// Команда изменения стиля фигуры (цвет заливки, обводки и толщина).
+    /// Поддерживает полное восстановление предыдущих значений.
+    /// </summary>
     public sealed class ApplyStyleCommand : ICommand
     {
         private readonly IShape _shape;

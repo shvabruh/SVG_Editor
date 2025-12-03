@@ -6,9 +6,20 @@ using System.Threading.Tasks;
 
 namespace SVG_Editor.Shapes
 {
+    /// <summary>
+    /// Линейный примитив: отрезок между двумя точками.
+    /// Используется для рисования линий на холсте.
+    /// </summary>
     public sealed class LineShape: IShape
     {
+        /// <summary>
+        /// Первая точка линии в координатах холста.
+        /// </summary>
         public PointF P1 { get; set; }
+
+        /// <summary>
+        /// Вторая точка линии в координатах холста.
+        /// </summary>
         public PointF P2 { get; set; }
         public Color Fill { get; set; } = Color.Transparent; // не используется
         public Color Stroke { get; set; } = Color.Black;
@@ -32,6 +43,9 @@ namespace SVG_Editor.Shapes
             }
         }
 
+        /// <summary>
+        /// Отрисовывает линию на холсте с указанной толщиной и цветом.
+        /// </summary>
         public void Draw(Graphics g)
         {
             using var pen = new Pen(Stroke, StrokeWidth)

@@ -3,10 +3,17 @@ using SVG_Editor.Shapes;
 
 namespace SVG_Editor
 {
+    /// <summary>
+    /// Утилитный класс для отрисовки рамки выделения и управляющих ручек
+    /// вокруг выбранной фигуры, а также для вычисления новых границ при ресайзе.
+    /// </summary>
     public static class SelectionRenderer
     {
         private const float HandleSize = 6f;
 
+        /// <summary>
+        /// Рисует рамку выделения и ручки вокруг указанной фигуры.
+        /// </summary>
         public static void DrawFrame(Graphics g, IShape s)
         {
             using var pen = new Pen(Color.Black)
@@ -29,6 +36,10 @@ namespace SVG_Editor
             }
         }
 
+        /// <summary>
+        /// Определяет, попадает ли точка в одну из ручек рамки,
+        /// и возвращает тип этой ручки.
+        /// </summary>
         public static HandleKind HitHandle(IShape s, PointF p)
         {
             if (s is GroupShape) return HandleKind.None;
@@ -42,6 +53,10 @@ namespace SVG_Editor
             return HandleKind.None;
         }
 
+        /// <summary>
+        /// Строит прямоугольник на основе двух диагонально противоположных точек.
+        /// Используется при интерактивном создании фигур.
+        /// </summary>
         public static RectangleF RectFromTwoPoints(PointF a, PointF b)
         {
             var x = Math.Min(a.X, b.X);

@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 
 namespace SVG_Editor.Shapes
 {
+    /// <summary>
+    /// Прямоугольная фигура с возможной заливкой и обводкой.
+    /// Используется для рисования прямоугольников и квадратов.
+    /// </summary>
     public sealed class RectShape : IShape
     {
         public RectangleF Bounds { get; set; }
@@ -15,6 +19,10 @@ namespace SVG_Editor.Shapes
 
         public RectShape(RectangleF b) { Bounds = b; }
 
+        /// <summary>
+        /// Рисует прямоугольник на холсте:
+        /// сначала заливку (если она есть), затем обводку.
+        /// </summary>
         public void Draw(Graphics g)
         {
             if (Fill.A > 0)

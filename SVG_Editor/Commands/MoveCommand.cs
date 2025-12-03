@@ -3,6 +3,10 @@
 
 namespace SVG_Editor.Commands
 {
+    /// <summary>
+    /// Команда перемещения фигуры на заданный вектор.
+    /// При Undo возвращает фигуру в исходное положение.
+    /// </summary>
     public sealed class MoveCommand : ICommand
     {
         private readonly IShape _s;

@@ -5,9 +5,21 @@ using System.Globalization;
 
 namespace SVG_Editor
 {
+    /// <summary>
+    /// Главная форма SVG-редактора.
+    /// Отвечает за создание интерфейса, обработку действий пользователя
+    /// (мышь, клавиатура, горячие клавиши), работу с холстом и фигурными объектами.
+    /// </summary>
     public sealed partial class MainForm : Form
     {
+        /// <summary>
+        /// Набор инструментов рисования, доступных пользователю в редакторе.
+        /// </summary>
         enum Tool { Select, Rect, Ellipse, Line }
+
+        /// <summary>
+        /// Типы ручек (углы и стороны) рамки выделения, используемые для изменения размера фигур.
+        /// </summary>
         enum HandleKind { None, N, NE, E, SE, S, SW, W, NW }
 
         private readonly List<IShape> _shapes = new();
@@ -129,7 +141,7 @@ namespace SVG_Editor
             _ss.Items.Add(_status);
             Controls.Add(_ss);
 
-            // ===== Панель свойств справа =====
+            // Панель свойств справа
             _propsPanel = new Panel
             {
                 Dock = DockStyle.Right,
@@ -208,6 +220,10 @@ namespace SVG_Editor
             SetTool(Tool.Select);
         }
 
+        /// <summary>
+        /// Переключает активный инструмент и обновляет состояние кнопок на панели.
+        /// </summary>
+        /// <param name="t">Инструмент, который должен стать активным.</param>
         private void SetTool(Tool t)
         {
             _tool = t;
@@ -218,7 +234,11 @@ namespace SVG_Editor
             _status.Text = $"Инструмент: {_tool}" + (_stylePickMode ? "  |  Пипетка" : "");
         }
 
-        // ===== Рендеринг =====
+        /// <summary>
+        /// Выполняет отрисовку холста, всех фигур и рамок выделения
+        /// с учётом текущего масштаба и смещения.
+        /// </summary>
+        /// <param name="e">Аргументы события перерисовки.</param>
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
@@ -254,7 +274,11 @@ namespace SVG_Editor
             }
         }
 
-        // ===== Мышь =====
+        /// <summary>
+        /// Обрабатывает нажатие кнопки мыши на холсте:
+        /// выбор фигур, начало перетаскивания, создание новых примитивов,
+        /// множественное выделение и режим пипетки.
+        /// </summary>
         private void OnMouseDown(object? sender, MouseEventArgs e)
         {
             var pCanvas = ScreenToCanvas(e.Location);
@@ -356,6 +380,11 @@ namespace SVG_Editor
             }
         }
 
+        /// <summary>
+        /// Обрабатывает движение мыши при зажатой левой кнопке:
+        /// перетаскивание фигур, изменение размера через ручки,
+        /// интерактивное рисование прямоугольников, эллипсов и линий.
+        /// </summary>
         private void OnMouseMove(object? sender, MouseEventArgs e)
         {
             var pCanvas = ScreenToCanvas(e.Location);
@@ -453,6 +482,10 @@ namespace SVG_Editor
             }
         }
 
+        /// <summary>
+        /// Завершает операции рисования и перетаскивания:
+        /// фиксирует изменения через команды истории (Undo/Redo).
+        /// </summary>
         private void OnMouseUp(object? sender, MouseEventArgs e)
         {
             if (_tool == Tool.Select && _selection is not null)
@@ -490,7 +523,11 @@ namespace SVG_Editor
             Invalidate();
         }
 
-        // ===== Клавиатура / хоткеи =====
+        /// <summary>
+        /// Обрабатывает нажатия клавиш:
+        /// горячие клавиши инструментов, Undo/Redo, удаление,
+        /// копирование/вставку, дубликат, группировку и перемещение стрелками.
+        /// </summary>
         private void OnKeyDown(object? sender, KeyEventArgs e)
         {
             // Delete
@@ -619,6 +656,11 @@ namespace SVG_Editor
             }
         }
 
+        /// <summary>
+        /// Обрабатывает прокрутку колесика мыши:
+        /// при зажатом Shift выполняет масштабирование холста
+        /// относительно позиции курсора.
+        /// </summary>
         private void OnMouseWheel(object? sender, MouseEventArgs e)
         {
             // Масштаб только при зажатом Shift
@@ -651,6 +693,9 @@ namespace SVG_Editor
             Invalidate();
         }
 
+        /// <summary>
+        /// Удаляет текущую выделенную фигуру и записывает действие в историю.
+        /// Если ничего не выделено, метод ничего не делает.
         private void DeleteSelection()
         {
             if (_selection is null) return;
@@ -661,7 +706,12 @@ namespace SVG_Editor
             Invalidate();
         }
 
-        // ===== Hit-test =====
+        /// <summary>
+        /// Выполняет hit-test по фигурам: ищет верхнюю фигуру,
+        /// в границы которой попадает указанная точка.
+        /// </summary>
+        /// <param name="p">Координаты точки в системе холста.</param>
+        /// <returns>Найденная фигура или null, если под точкой ничего нет.</returns>
         private IShape? HitTest(PointF p)
         {
             for (int i = _shapes.Count - 1; i >= 0; i--)
@@ -669,6 +719,12 @@ namespace SVG_Editor
             return null;
         }
 
+        /// <summary>
+        /// Преобразует координаты из экранных (пиксели формы) в координаты холста
+        /// с учётом смещения и текущего масштаба.
+        /// </summary>
+        /// <param name="p">Точка в экранных координатах.</param>
+        /// <returns>Точка в координатах холста.</returns>
         private PointF ScreenToCanvas(Point p)
         {
             int yOff = _ts.Height + MainMenuStrip!.Height;
@@ -677,8 +733,11 @@ namespace SVG_Editor
                 (p.Y - yOff - _pan.Y) / _zoom);
         }
 
-        // ===== SVG I/O =====
-  
+        /// <summary>
+        /// Сохраняет текущее содержимое холста в SVG-файл:
+        /// создаёт дерево XML и записывает его на диск.
+        /// При ошибке выводит пользователю понятное сообщение.
+        /// </summary>
         private void DoSave()
         {
             using var sfd = new SaveFileDialog() { Filter = "SVG файлы (*.svg)|*.svg" };
@@ -708,6 +767,12 @@ namespace SVG_Editor
             }
         }
 
+        /// <summary>
+        /// Рекурсивно сериализует фигуру в SVG-элемент и добавляет его в документ.
+        /// Для группируемых фигур рекурсивно сохраняет все дочерние объекты.
+        /// </summary>
+        /// <param name="parent">Родительский XML-элемент &lt;svg&gt; или другой контейнер.</param>
+        /// <param name="sh">Фигура, которую необходимо сохранить.</param>
         private void SaveShapeToSvg(XElement parent, IShape sh)
         {
             // локальный хелпер: превращаем цвет заливки в значение атрибута fill
@@ -764,6 +829,12 @@ namespace SVG_Editor
             }
         }
 
+        /// <summary>
+        /// Открывает существующий SVG-файл, разбирает его содержимое
+        /// и создаёт набор фигур на холсте. Поддерживаются базовые примитивы:
+        /// прямоугольник, эллипс и линия. Некорректные файлы обрабатываются
+        /// без падения приложения.
+        /// </summary>
         private void DoOpen()
         {
             using var ofd = new OpenFileDialog() { Filter = "SVG файлы (*.svg)|*.svg" };
@@ -890,6 +961,11 @@ namespace SVG_Editor
             }
         }
 
+        /// <summary>
+        /// Создаёт новый пустой холст с заданными размерами:
+        /// открывает диалог, очищает текущие фигуры
+        /// и устанавливает новые параметры холста.
+        /// </summary>
         private void DoNewCanvas()
         {
             using var dlg = new NewCanvasForm(_canvasSize);
@@ -922,6 +998,14 @@ namespace SVG_Editor
             return def;
         }
 
+        /// <summary>
+        /// Преобразует строковое значение длины из SVG
+        /// в число с плавающей точкой, понимая суффикс "px"
+        /// и формат с точкой в качестве десятичного разделителя.
+        /// </summary>
+        /// <param name="raw">Исходное строковое значение.</param>
+        /// <param name="def">Значение по умолчанию, если парсинг не удался.</param>
+        /// <returns>Числовое значение длины.</returns>
         private static float ParseSvgLength(string? raw, float def = 0f)
         {
             if (string.IsNullOrWhiteSpace(raw))
@@ -938,6 +1022,13 @@ namespace SVG_Editor
             return def;
         }
 
+        /// <summary>
+        /// Разбирает цвет из атрибута SVG (hex, rgb, имя цвета),
+        /// а также корректно обрабатывает значения "none" и "transparent".
+        /// </summary>
+        /// <param name="el">Элемент XML, содержащий атрибут цвета.</param>
+        /// <param name="name">Имя атрибута (например, "fill" или "stroke").</param>
+        /// <param name="def">Цвет по умолчанию, если атрибут отсутствует или некорректен.</param>
         private static Color ParseColor(XElement el, string name, Color def)
         {
             var a = el.Attribute(name);
@@ -965,6 +1056,11 @@ namespace SVG_Editor
             }
         }
 
+        /// <summary>
+        /// Обновляет значения на панели свойств (координаты, размеры, цвета)
+        /// в соответствии с текущей выделенной фигурой.
+        /// Если фигура не выбрана, панель очищается.
+        /// </summary>
         private void UpdatePanelFromSelection()
         {
             if (_updatingPropsFromSelection) return;
@@ -995,6 +1091,10 @@ namespace SVG_Editor
             _updatingPropsFromSelection = false;
         }
 
+        /// <summary>
+        /// Считывает значения из панели свойств и применяет их к выделенной фигуре.
+        /// Изменения записываются в историю как одна команда.
+        /// </summary>
         private void ApplyPropsFromPanel()
         {
             if (_updatingPropsFromSelection) return;
@@ -1030,6 +1130,13 @@ namespace SVG_Editor
             Invalidate();
         }
 
+        /// <summary>
+        /// Открывает диалог выбора цвета и применяет выбранный цвет
+        /// к заливке или обводке выделенной фигуры.
+        /// </summary>
+        /// <param name="fill">
+        /// true — изменить цвет заливки, false — изменить цвет обводки.
+        /// </param>
         private void ChangeColor(bool fill)
         {
             if (_selection is null) return;

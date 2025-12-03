@@ -7,6 +7,10 @@ using System.Threading.Tasks;
 
 namespace SVG_Editor.Commands
 {
+    /// <summary>
+    /// Команда удаления фигуры с холста.
+    /// Позволяет вернуть фигуру обратно при Undo.
+    /// </summary>
     public sealed class RemoveShapeCommand : ICommand
     {
         private readonly List<IShape> _list;
@@ -16,6 +20,9 @@ namespace SVG_Editor.Commands
         public RemoveShapeCommand(List<IShape> list, IShape s)
         { _list = list; _s = s; }
 
+        /// <summary>
+        /// Добавляет фигуру в коллекцию.
+        /// </summary>
         public void Do()
         {
             _idx = _list.IndexOf(_s);
@@ -23,6 +30,9 @@ namespace SVG_Editor.Commands
                 _list.RemoveAt(_idx);
         }
 
+        /// <summary>
+        /// Удаляет ранее добавленную фигуру из коллекции.
+        /// </summary>
         public void Undo()
         {
             if (_idx < 0 || _idx > _list.Count)

@@ -1,10 +1,18 @@
 ﻿namespace SVG_Editor
 {
+    /// <summary>
+    /// Диалоговая форма создания нового холста.
+    /// Позволяет пользователю задать ширину и высоту холста перед началом рисования.
+    /// </summary>
     public partial class NewCanvasForm : Form
     {
         private NumericUpDown _numW = null!;
         private NumericUpDown _numH = null!;
 
+        /// <summary>
+        /// Текущий выбранный размер холста.
+        /// Берётся из значений числовых полей ширины и высоты.
+        /// </summary>
         public SizeF CanvasSize => new SizeF((float)_numW.Value, (float)_numH.Value);
 
         public NewCanvasForm(SizeF current)

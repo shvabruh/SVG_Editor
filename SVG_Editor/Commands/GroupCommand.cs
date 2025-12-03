@@ -2,6 +2,10 @@
 
 namespace SVG_Editor.Commands
 {
+    /// <summary>
+    /// Команда группировки нескольких фигур в единый объект GroupShape.
+    /// При Undo возвращает фигуры в исходный список без группы.
+    /// </summary>
     public sealed class GroupCommand: ICommand
     {
         private readonly List<IShape> _list;
