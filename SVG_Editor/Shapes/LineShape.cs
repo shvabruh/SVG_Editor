@@ -21,7 +21,7 @@ namespace SVG_Editor.Shapes
         /// Вторая точка линии в координатах холста.
         /// </summary>
         public PointF P2 { get; set; }
-        public Color Fill { get; set; } = Color.Transparent; // не используется
+        public Color Fill { get; set; } = Color.Transparent;
         public Color Stroke { get; set; } = Color.Black;
         public float StrokeWidth { get; set; } = 2f;
 

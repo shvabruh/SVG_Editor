@@ -34,6 +34,9 @@ namespace SVG_Editor.Commands
             _group = new GroupShape(_children);
         }
 
+        /// <summary>
+        /// Добавляет фигуру в коллекцию.
+        /// </summary>
         public void Do()
         {
             foreach (var c in _children)
@@ -42,6 +45,9 @@ namespace SVG_Editor.Commands
             _list.Insert(_insertIndex, _group);
         }
 
+        /// <summary>
+        /// Удаляет ранее добавленную фигуру из коллекции.
+        /// </summary>
         public void Undo()
         {
             _list.Remove(_group);

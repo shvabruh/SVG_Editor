@@ -13,7 +13,14 @@ namespace SVG_Editor.Commands
         private readonly PointF _d;
         public MoveCommand(IShape s, PointF d) { _s = s; _d = d; }
 
+        /// <summary>
+        /// Добавляет фигуру в коллекцию.
+        /// </summary>
         public void Do() => _s.MoveBy(_d);
+
+        /// <summary>
+        /// Удаляет ранее добавленную фигуру из коллекции.
+        /// </summary>
         public void Undo() => _s.MoveBy(new PointF(-_d.X, -_d.Y));
     }
 }

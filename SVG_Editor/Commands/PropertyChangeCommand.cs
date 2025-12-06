@@ -32,6 +32,9 @@ namespace SVG_Editor.Commands
             _newWidth = newWidth;
         }
 
+        /// <summary>
+        /// Добавляет фигуру в коллекцию.
+        /// </summary>
         public void Do()
         {
             _shape.Bounds = _newBounds;
@@ -40,6 +43,9 @@ namespace SVG_Editor.Commands
             _shape.StrokeWidth = _newWidth;
         }
 
+        /// <summary>
+        /// Удаляет ранее добавленную фигуру из коллекции.
+        /// </summary>
         public void Undo()
         {
             _shape.Bounds = _oldBounds;

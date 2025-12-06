@@ -23,6 +23,9 @@ namespace SVG_Editor.Commands
             _index = list.IndexOf(group);
         }
 
+        /// <summary>
+        /// Добавляет фигуру в коллекцию.
+        /// </summary>
         public void Do()
         {
             if (_index < 0) return;
@@ -39,6 +42,9 @@ namespace SVG_Editor.Commands
             }
         }
 
+        /// <summary>
+        /// Удаляет ранее добавленную фигуру из коллекции.
+        /// </summary>
         public void Undo()
         {
             foreach (var c in _group.Children)

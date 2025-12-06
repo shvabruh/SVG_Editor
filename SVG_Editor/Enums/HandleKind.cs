@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace SVG_Editor.Enums
 {
+    /// <summary>
+    /// Типы ручек (углы и стороны) рамки выделения, используемые для изменения размера фигур.
+    /// </summary>
     public enum HandleKind
     {
         None,

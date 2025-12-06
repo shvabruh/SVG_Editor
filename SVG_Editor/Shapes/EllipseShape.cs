@@ -23,7 +23,6 @@ namespace SVG_Editor.Shapes
         /// Отрисовывает эллипс, учитывая заливку и обводку.
         /// </summary>
         public void Draw(Graphics g)
-        public void Draw(Graphics g)
         {
             if (Fill.A > 0)
             {

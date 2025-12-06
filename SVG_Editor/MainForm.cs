@@ -78,7 +78,7 @@ namespace SVG_Editor
             ClientSize = new Size(1000, 700);
             KeyPreview = true;
 
-            // ===== Меню =====
+            // Меню
             var miNew = new ToolStripMenuItem("Новый холст", null, (_, __) => DoNewCanvas())
             { ShortcutKeys = Keys.Control | Keys.O };
             var miOpen = new ToolStripMenuItem("Открыть", null, (_, __) => DoOpen())
@@ -102,7 +102,7 @@ namespace SVG_Editor
             MainMenuStrip = menu;
             Controls.Add(menu);
 
-            // ===== ToolStrip =====
+            // ToolStrip
             var bNew = new ToolStripButton("Новый холст");
             var bOpen = new ToolStripButton("Открыть");
             var bSave = new ToolStripButton("Сохранить");
@@ -137,7 +137,7 @@ namespace SVG_Editor
             });
             Controls.Add(_ts);
 
-            // ===== Статус =====
+            // Статус
             _ss.Items.Add(_status);
             Controls.Add(_ss);
 
