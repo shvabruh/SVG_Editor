@@ -4,6 +4,9 @@ using SVG_Editor.Commands;
 
 namespace SVG_Editor.Tests
 {
+    /// <summary>
+    /// класс функциональных тестов, проверяющих граничные значения параметров
+    /// </summary>
     [TestClass]
     public class FunctionalTests
     {
